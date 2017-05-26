@@ -30,7 +30,7 @@ class TraceSet(object):
         '''
         if not isinstance(x, (numbers.Real, np.ndarray)):
             x = np.array(x)
-        return 2.0 * (x - self._xmin) / (self._xmax - self._xmin) - 1.0
+        return (x - self._xmin) * (2.0 / (self._xmax - self._xmin)) - 1.0
         
     def eval(self, ispec, x=None, xnorm=None):
         '''
@@ -46,8 +46,9 @@ class TraceSet(object):
             if ispec is None:
                 ispec = list(range(self._coeff.shape[0]))
 
-            y = [legval(xnorm, self._coeff[i]) for i in ispec]
-            return np.array(y)
+            #y = [legval(xnorm, self._coeff[i]) for i in ispec]
+            #return np.array(y)
+            return legval(xnorm, self._coeff[ispec].T)
             
     # def __call__(self, ispec, x):
     #     return self.eval(ispec, x)
@@ -66,7 +67,7 @@ class TraceSet(object):
         c = np.zeros((self.ntrace, deg+1))
         for i in range(self.ntrace):
             y = self.eval(i, x)
-            yy = 2.0 * (y-ymin) / (ymax-ymin) - 1.0
+            yy = (y-ymin) * (2.0 / (ymax-ymin)) - 1.0
             c[i] = legfit(yy, x, deg)
             
         return TraceSet(c, domain=(ymin, ymax))
@@ -90,8 +91,11 @@ def fit_traces(x, yy, deg=5, domain=None):
         xmin, xmax = domain
         
     c = np.zeros((nspec, deg+1))
+    # xx = 2.0 * (x-xmin) / (xmax-xmin) - 1.0
+    xx = x - xmin
+    xx *= 2.0/(xmax-xmin)
+    xx -= 1.0
     for i in range(nspec):
-        xx = 2.0 * (x-xmin) / (xmax-xmin) - 1.0
         c[i] = legfit(xx, yy[i], deg)
 
     return TraceSet(c, [xmin, xmax])
