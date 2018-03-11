@@ -504,6 +504,23 @@ class GenericPSFTests(object):
         self.assertLess(xmin, xmax)
         self.assertGreater(xmax, 0)
 
+    def test_cache(self):
+        ww = np.linspace(self.psf.wmin_all, self.psf.wmax_all)
+        spec_range = (3,5)
+        self.psf.cache_params(spec_range, ww)
+        for ispec in range(spec_range[0], spec_range[1]):
+            for iw, w in enumerate(ww):
+                #- Cached values should agree with direct calls
+                xx1, yy1, pix1 = self.psf.xypix(ispec, w)
+                xx2, yy2, pix2 = self.psf.xypix(ispec, w, iwave_cache=iw)
+                self.assertEqual(xx1, xx2)
+                self.assertEqual(yy1, yy2)
+                #- maybe need np.allclose, but let's start with np.all()
+                self.assertTrue(np.all(pix1 == pix2))
+
+        #- Calling something that isn't in the cache is still ok
+        xx, yy, pix = self.psf.xypix(0, ww[0]+1.0)
+
 #- Test Pixellated PSF format
 class TestPixPSF(GenericPSFTests,unittest.TestCase):
     @classmethod

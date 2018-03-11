@@ -197,26 +197,53 @@ class PSF(object):
     #-------------------------------------------------------------------------
     #- Evaluate the PSF into pixels
     
-    def pix(self, ispec, wavelength):
+    def cache_params(self, spec_range, wavelengths):
+        """
+        Optionally cache PSF parameters to make future xypix calls faster
+
+        Args:
+            spec_range: indices (specmin, specmax) python-style indexing
+            wavelengths: float array of wavelengths
+
+        Subclasses may optionally implement this function.  Subsequent calls
+        to self.xypix() and self.projection_matrix() may contain an
+        iwave_cache parameter giving an index into the cache.
+
+        If not implemented by the subclass, this function from the PSF base
+        class does nothing, and including iwave to the other calls is
+        harmless (but also not beneficial.)
+        """
+        pass
+
+    def pix(self, ispec, wavelength, iwave_cache=None):
         """
         Evaluate PSF for spectrum[ispec] at given wavelength
         
         returns 2D array pixels[iy,ix]
+
+        If iwave_cache is set, it can be used as an index to the wavelength
+        array previously passed to cache PSF parameters in self.cache_xypix().
+        It is optional if subclasses want to use this or not.
         
         also see xypix(ispec, wavelength)
         """
-        return self.xypix(ispec, wavelength)[2]
+        return self.xypix(ispec, wavelength, iwave_cache=None)[2]
 
-    def _xypix(self, ispec, wavelength):
+    def _xypix(self, ispec, wavelength, iwave_cache=None):
         """
         Subclasses of PSF should implement this to return
         xslice, yslice, pixels[iy,ix] for their particular
         models.  Don't worry about edge effects -- PSF.xypix
         will take care of that.
+
+        If iwave_cache is set, it can be used as an index to the wavelength
+        array previously passed to cache PSF parameters in self.cache_xypix().
+        It is optional if subclasses want to use this or not.
         """
         raise NotImplementedError
         
-    def xypix(self, ispec, wavelength, xmin=0, xmax=None, ymin=0, ymax=None):
+    def xypix(self, ispec, wavelength, xmin=0, xmax=None, ymin=0, ymax=None,
+        iwave_cache=None):
         """
         Evaluate PSF for spectrum[ispec] at given wavelength
         
@@ -226,6 +253,9 @@ class PSF(object):
         
         if xmin or ymin are set, the slices are relative to those
         minima (useful for simulating subimages)
+
+        if iwave is set, it refers to the index of the
+        wavelengths previously passed to self.cache_xypix().
         """
         if xmax is None:
             xmax = self.npix_x
@@ -237,17 +267,9 @@ class PSF(object):
         elif wavelength > self.wavelength(ispec, self.npix_y-0.5):
             return slice(0,0), slice(ymax, ymax), np.zeros((0,0))
         
-        key = (ispec, wavelength)
-        try:
-            if key in self._cache:
-                xx, yy, ccdpix = self._cache[key]
-            else:
-                xx, yy, ccdpix = self._xypix(ispec, wavelength)
-                self._cache[key] = (xx, yy, ccdpix)
-        except AttributeError:
-            self._cache = CacheDict(2500)
-            xx, yy, ccdpix = self._xypix(ispec, wavelength)
-            
+        xx, yy, ccdpix = self._xypix(ispec, wavelength,
+                                     iwave_cache=iwave_cache)
+
         xlo, xhi = xx.start, xx.stop
         ylo, yhi = yy.start, yy.stop
 
@@ -612,14 +634,18 @@ class PSF(object):
         """Maximum wavelength seen by all spectra"""
         return self._wmax_all
     
-    def projection_matrix(self, spec_range, wavelengths, xyrange):
+    def projection_matrix(self, spec_range, wavelengths, xyrange, iwave_cache=None):
         """
         Returns sparse projection matrix from flux to pixels
     
-        Inputs:
+        Args:
             spec_range = (ispecmin, ispecmax) or scalar ispec
             wavelengths = array_like wavelengths
             xyrange  = (xmin, xmax, ymin, ymax)
+
+        Options:
+            iwave_cache: index of wavelengths[0] in the possibly larger
+                wavelengths array previously passed to self.cache_xypix()
             
         Usage:
             xyrange = xmin, xmax, ymin, ymax
@@ -645,14 +671,23 @@ class PSF(object):
         A = np.zeros( (ny*nx, nspec*nflux) )
         tmp = np.zeros((ny, nx))
         for ispec in range(specmin, specmax):
-            for iflux, w in enumerate(wavelengths):
+            for iw, w in enumerate(wavelengths):
+                #- Are use using a pre-cached wavelength?
+                if iwave_cache is not None:
+                    iwave = iwave_cache + iw
+                else:
+                    iwave = None
+
                 #- Get subimage and index slices
-                xslice, yslice, pix = self.xypix(ispec, w, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
+                xslice, yslice, pix = self.xypix(ispec, w,
+                    xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax,
+                    iwave_cache = iwave
+                    )
                 
                 #- If there is overlap with pix_range, put into sub-region of A
                 if pix.shape[0]>0 and pix.shape[1]>0:
                     tmp[yslice, xslice] = pix
-                    ij = (ispec-specmin)*nflux + iflux
+                    ij = (ispec-specmin)*nflux + iw
                     A[:, ij] = tmp.ravel()
                     tmp[yslice, xslice] = 0.0
         

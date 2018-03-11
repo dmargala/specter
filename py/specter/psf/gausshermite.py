@@ -146,10 +146,27 @@ class GaussHermitePSF(PSF):
             y = sp.erf(u/np.sqrt(2.))
             return 0.5 * (y[1:] - y[0:-1])
 
+    def cache_params(self, spec_range, wavelengths):
+        """
+        Cache PSF parameters to make future xypix calls faster
 
-        
+        Args:
+            spec_range: indices (specmin, specmax) python-style indexing
+            wavelengths: float array of wavelengths
 
-    def _xypix(self, ispec, wavelength):
+        If called, future calls to xypix and projection_matrix may include
+        an optional `iwave_cache` index into the `wavelengths` array provided
+        here, which will be used to retrieve cached PSF parameters for faster
+        evaluation.
+        """
+        ## TODO: implement this.
+        pass
+
+    def _xypix(self, ispec, wavelength, iwave_cache=None):
+
+        ## TODO: implement using iwave_cache (if not None)
+        ## to lookup the cached values instead of calling
+        ## self.XXX.eval(ispec, wavelength)
 
         # x, y = self.xy(ispec, wavelength)
         x = self._x.eval(ispec, wavelength)

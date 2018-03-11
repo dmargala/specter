@@ -38,7 +38,7 @@ class PixPSF(PSF):
         self.psfimage = fx[5].data.view(np.ndarray)  #- [igroup, icoeff, iy, ix]
         fx.close()
                 
-    def _xypix(self, ispec, wavelength):
+    def _xypix(self, ispec, wavelength, iwave_cache=None):
         """
         Evaluate PSF for a given spectrum and wavelength
         
