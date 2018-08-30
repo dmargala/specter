@@ -29,7 +29,7 @@ class GaussHermitePSF(PSF):
         """        
         #- Check that this file is a current generation Gauss Hermite PSF
         fx = fits.open(filename, memmap=False)
-        self._polyparams = hdr = fx[1].header
+        self._polyparams = hdr = fx['PSF'].header
         if 'PSFTYPE' not in hdr:
             raise ValueError('Missing PSFTYPE keyword')
             
@@ -57,15 +57,23 @@ class GaussHermitePSF(PSF):
 
         #- Load the parameters into self.coeff dictionary keyed by PARAM
         #- with values as TraceSets for evaluating the Legendre coefficients
-        data = fx[1].data
+        data = fx['PSF'].data
         self.coeff = dict()
         for p in data:
-            domain = (p['WAVEMIN'], p['WAVEMAX'])
+            domain = (hdr['WAVEMIN'], hdr['WAVEMAX'])
             for p in data:
                 name = p['PARAM'].strip()
                 self.coeff[name] = TraceSet(p['COEFF'], domain=domain)
-        
+
         #- Pull out x and y as special tracesets
+        xdata, xhdr = fx['XTRACE'].data, fx['XTRACE'].header
+        domain = (xhdr['WAVEMIN'], xhdr['WAVEMAX'])
+        self.coeff['X'] = TraceSet(xdata, domain=domain)
+
+        ydata, yhdr = fx['YTRACE'].data, fx['YTRACE'].header
+        domain = (yhdr['WAVEMIN'], yhdr['WAVEMAX'])
+        self.coeff['Y'] = TraceSet(ydata, domain=domain)
+
         self._x = self.coeff['X']
         self._y = self.coeff['Y']
 
